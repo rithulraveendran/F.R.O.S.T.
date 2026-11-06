@@ -81,7 +81,11 @@ function checkYouTubeTitle() {
         const isEducational = EDUCATIONAL_KEYWORDS.some(keyword => title.includes(keyword));
 
         if (!isEducational) {
-            chrome.runtime.sendMessage({ action: 'redirect' });
+            try {
+                chrome.runtime.sendMessage({ action: 'redirect' });
+            } catch {
+                // Ignore context invalidation on extension reload
+            }
         }
     }
 }

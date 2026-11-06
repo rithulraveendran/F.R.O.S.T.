@@ -6,7 +6,13 @@
  * The threshold date until which all restrictions and anti-tamper shields are active.
  * Adjust this to your specific study/focus deadline.
  */
-export const UNLOCK_DATE = new Date('2026-06-07T00:00:00');
+export const UNLOCK_DATE = new Date('2027-01-05T00:00:00');
+
+/**
+ * Shared daily allowance in minutes across all domains in BLOCKED_DOMAINS.
+ * Once this quota is exhausted, tracked domains are immediately redirected.
+ */
+export const DAILY_ALLOWANCE_MINUTES = 5;
 
 /**
  * Target URL to redirect blocked requests (motivational wallpaper, focus dashboard, etc.).
@@ -14,7 +20,7 @@ export const UNLOCK_DATE = new Date('2026-06-07T00:00:00');
 export const REDIRECT_TARGET = 'https://i.pinimg.com/736x/6e/59/0b/6e590bb22b1fc1b447c8ff6a7f7902aa.jpg';
 
 /**
- * Domains tracked under the 15-minute shared daily allowance.
+ * Domains tracked under the shared daily allowance.
  */
 export const BLOCKED_DOMAINS = [
     'facebook.com',

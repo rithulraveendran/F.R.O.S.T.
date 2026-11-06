@@ -25,11 +25,11 @@ The firewall operates against a tamper-checked system threshold (`UNLOCK_DATE` i
 - **Absolute Lockdown:** All filtering rules and anti-tamper mechanisms remain fully enforced until the system clock passes the unlock date.
 - **Automated Stand-down:** Once the unlock timestamp arrives, the extension automatically stands down, restoring standard browser navigation without requiring code edits.
 
-### ⏳ 15-Minute Shared Daily Allowance
+### ⏳ Shared Daily Allowance (Default: 5 Minutes)
 Maintains a shared pool of leisure time across distracting platforms:
-- **Pooled Distraction Budget:** Spend an aggregated 15 minutes total per day across all blacklisted domains (Reddit, Instagram, X/Twitter, etc.) before hard redirection triggers.
+- **Pooled Distraction Budget:** Spend an aggregated 5 minutes total per day (configurable via `DAILY_ALLOWANCE_MINUTES` in `constants.js`) across all blacklisted domains (Reddit, Instagram, X/Twitter, etc.) before hard redirection triggers.
 - **Autonomous Midnight Reset:** The timer automatically resets at midnight each day via `chrome.storage.local`.
-- **Educational Exclusion:** Productive YouTube study sessions do *not* consume your 15-minute distraction allowance.
+- **Educational Exclusion:** Productive YouTube study sessions do *not* consume your distraction allowance.
 
 ### 🎥 Intelligent YouTube Educational Firewall
 Allows YouTube strictly for research and technical learning while eradicating rabbit holes:
@@ -54,15 +54,17 @@ All primary behavior is governed by [`constants.js`](constants.js). You can revi
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `UNLOCK_DATE` | `Date` | Timestamp until which all restrictions remain active (e.g. `2026-06-07T00:00:00`). |
+| `UNLOCK_DATE` | `Date` | Timestamp until which all restrictions remain active (e.g. `2027-01-05T00:00:00`). |
+| `DAILY_ALLOWANCE_MINUTES` | `number` | Daily shared quota in minutes across tracked domains (default: `5`). |
 | `REDIRECT_TARGET` | `string` | Target URL where blocked tabs will be redirected (motivational wallpaper, focus dashboard). |
-| `BLOCKED_DOMAINS` | `Array<string>` | Hostnames subject to the shared 15-minute daily allowance. |
+| `BLOCKED_DOMAINS` | `Array<string>` | Hostnames subject to the shared daily allowance. |
 | `HARD_BLOCKED_DOMAINS` | `Array<string>` | Hostnames permanently blocked with 0 allowance. |
 | `EDUCATIONAL_KEYWORDS` | `Array<string>` | Keywords required in YouTube video titles to permit viewing. |
 
 ```javascript
 // constants.js excerpt
-export const UNLOCK_DATE = new Date('2026-06-07T00:00:00');
+export const UNLOCK_DATE = new Date('2027-01-05T00:00:00');
+export const DAILY_ALLOWANCE_MINUTES = 5;
 export const REDIRECT_TARGET = 'https://i.pinimg.com/736x/6e/59/0b/6e590bb22b1fc1b447c8ff6a7f7902aa.jpg';
 ```
 
