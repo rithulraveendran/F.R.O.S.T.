@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Extreme Productivity Blocker",
+  "name": "F.R.O.S.T. - Extreme Productivity Blocker",
   "version": "1.0",
-  "description": "Hard-blocks distractions.",
+  "description": "Hard-blocks distractions and locks browser settings until the designated focus unlock date.",
   "permissions": [
     "tabs",
     "storage",

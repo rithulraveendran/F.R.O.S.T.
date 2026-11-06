@@ -1,6 +1,21 @@
-export const UNLOCK_DATE = new Date('2026-06-07T00:00:00'); // CHANGE THIS DATE AS NEEDED
-export const REDIRECT_TARGET = 'paste your redirect link here'; //Paste the URL you need to redirect to
+// ==============================================================================
+// F.R.O.S.T. Configuration
+// ==============================================================================
 
+/**
+ * The threshold date until which all restrictions and anti-tamper shields are active.
+ * Adjust this to your specific study/focus deadline.
+ */
+export const UNLOCK_DATE = new Date('2026-06-07T00:00:00');
+
+/**
+ * Target URL to redirect blocked requests (motivational wallpaper, focus dashboard, etc.).
+ */
+export const REDIRECT_TARGET = 'https://i.pinimg.com/736x/6e/59/0b/6e590bb22b1fc1b447c8ff6a7f7902aa.jpg';
+
+/**
+ * Domains tracked under the 15-minute shared daily allowance.
+ */
 export const BLOCKED_DOMAINS = [
     'facebook.com',
     'instagram.com',
@@ -17,36 +32,41 @@ export const BLOCKED_DOMAINS = [
     'github.com'
 ];
 
+/**
+ * Domains that are blocked immediately with zero timer allowance.
+ */
+export const HARD_BLOCKED_DOMAINS = [
+    'flixbaba.mov',
+    'flixbaba'
+];
+
+/**
+ * Educational keywords used by the YouTube content filter.
+ * If a video's title does not match at least one keyword, it will be redirected.
+ */
 export const EDUCATIONAL_KEYWORDS = [
-    // --- General Academic & Study ---
+    // General Educational Terms
     'tutorial', 'course', 'lecture', 'science', 'math', 'coding', 'study', 'university', 'college', 'exam', 
-    'preparation', 'guide', 'how to', 'documentary', 'academy', 'khan', 'coursera', 'edx', 'udemy', 'lesson', 
-    'learn', 'instruction', 'seminar', 'workshop', 'masterclass', 'bootcamp', 'curriculum', 'textbook',
-    'classroom', 'education', 'academic', 'scholar', 'research', 'thesis', 'dissertation', 'project',
+    'preparation', 'guide', 'how to', 'documentary', 'mathematics', 'algebra', 'calculus', 'geometry', 
+    'statistics', 'programming', 'academy', 'khan', 'coursera', 'edx', 'udemy', 'pluralsight', 
+    'linkedin learning', 'ted', 'crash course', 'veritasium', 'vsauce', '3blue1brown', 'smarter everyday', 
+    'mark rober', 'engineering explained', 'computerphile', 'numberphile', 'periodic videos', 'minutephysics', 
+    'minuteearth', 'asapscience', 'scishow', 'kurzgesagt', 'educational', 'lesson', 'learn', 'instruction', 
+    'seminar', 'workshop', 'masterclass', 'bootcamp', 'coding challenge', 'algorithms', 'data structures',
 
-    // --- STEM (Science, Technology, Engineering, Math) ---
-    'engineering', 'physics', 'chemistry', 'biology', 'mathematics', 'algebra', 'calculus', 'geometry', 
-    'statistics', 'programming', 'electronics', 'circuits', 'mechanics', 'thermodynamics', 'robotics', 
-    'aerospace', 'civil', 'mechanical', 'electrical', 'chemical', 'software', 'computer science',
-    'data science', 'ai', 'machine learning', 'neuroscience', 'anatomy', 'physiology', 'medicine',
-    'nursing', 'biomedical', 'nanotechnology', 'astronomy', 'astrophysics', 'geology', 'environmental',
+    // Core Engineering & Science
+    'engineering', 'physics', 'chemistry', 'biology', 'electronics', 'circuits', 'mechanics', 'thermodynamics', 
+    'robotics', 'mechatronics', 'aerospace', 'civil', 'mechanical', 'electrical', 'chemical', 'software',
+    'structural', 'material science', 'nanotechnology', 'biomedical', 'semiconductor', 'power systems',
+    'control systems', 'signal processing', 'fluid mechanics', 'solid mechanics', 'quantum',
 
-    // --- Humanities & Social Sciences ---
-    'history', 'geography', 'economics', 'philosophy', 'psychology', 'sociology', 'anthropology', 
-    'linguistics', 'literature', 'poetry', 'art history', 'music theory', 'politics', 'law', 
-    'archaeology', 'theology', 'ethics', 'logic', 'critical thinking', 'civilization', 'mythology',
+    // Computer Science & Software
+    'python', 'javascript', 'java', 'c++', 'rust', 'sql', 'web development', 'data science', 'machine learning', 
+    'ai', 'artificial intelligence', 'devops', 'cloud computing', 'aws', 'azure', 'cybersecurity', 'linux',
+    'git', 'github', 'docker', 'kubernetes', 'database', 'backend', 'frontend', 'fullstack',
 
-    // --- Business, Finance & Professional ---
-    'finance', 'accounting', 'business', 'marketing', 'management', 'entrepreneurship', 'leadership', 
-    'productivity', 'soft skills', 'communication', 'writing', 'reading', 'problem solving',
-    'project management', 'agile', 'scrum', 'investing', 'stock market', 'trading', 'real estate',
-
-    // --- High-Quality Educational Creators/Channels ---
-    'veritasium', 'vsauce', '3blue1brown', 'smarter everyday', 'mark rober', 'engineering explained', 
-    'computerphile', 'numberphile', 'periodic videos', 'minutephysics', 'minuteearth', 'asapscience', 
-    'scishow', 'kurzgesagt', 'oversimplified', 'crash course', 'ted', 'national geographic', 'pbs',
-
-    // --- Technical Tools & Skills ---
-    'python', 'javascript', 'java', 'c++', 'rust', 'sql', 'matlab', 'solidworks', 'autocad', 'excel',
-    'photoshop', 'illustrator', 'premiere pro', 'figma', 'git', 'linux', 'aws', 'azure', 'docker'
+    // Professional & Research
+    'research', 'methodology', 'thesis', 'dissertation', 'project', 'design', 'simulation', 'modeling',
+    'cad', 'solidworks', 'autocad', 'matlab', 'labview', 'arduino', 'raspberry pi', 'embedded',
+    'prototype', 'patent', 'standard', 'iso', 'ieee'
 ];

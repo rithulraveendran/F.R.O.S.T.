@@ -1,89 +1,111 @@
-# 🛡️ F.R.O.S.T. 
-## (Focus Restriction & Online Surveillance Timer)
+# 🛡️ F.R.O.S.T. — Focus Restriction & Online Surveillance Timer
 
-# ⚠️ CRITICAL WARNING: READ BEFORE INSTALLING
-## 🛑 THIS EXTENSION IS DESIGNED TO BE UNREMOVABLE
-**Once activated, the Anti-Tamper Protocol will block your access to `chrome://extensions`. You will NOT be able to disable, configure, or remove this extension through the browser UI until the `UNLOCK_DATE` is reached. Proceed only if you are committed to absolute focus.**
+[![Platform](https://img.shields.io/badge/Platform-Google%20Chrome%20(MV3)-blue.svg?style=for-the-badge&logo=googlechrome)]()
+[![Status](https://img.shields.io/badge/Status-Hard--Lockdown-red.svg?style=for-the-badge)]()
+[![License](https://img.shields.io/badge/License-MIT-emerald.svg?style=for-the-badge)]()
+
+> *"Engineering demands absolute precision. Procrastination is a variable we cannot afford."*
+
+**F.R.O.S.T.** is not an ordinary website blocker. It is an **engineering-grade psychological firewall** designed for students, engineers, and researchers who need an unyielding environment for high-stakes preparation. Once engaged, F.R.O.S.T. enforces strict boundaries that cannot be casually toggled off until your designated target date.
 
 ---
 
-[![Status](https://img.shields.io/badge/Status-Hard--Gate-red.svg?style=for-the-badge)]()
-[![Platform](https://img.shields.io/badge/Platform-Chrome-blue.svg?style=for-the-badge)]()
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)]()
+## ⚠️ Critical Advisory: Read Before Installing
 
-> **"Extreme productivity requires extreme measures."**
-
-**F.R.O.S.T.** is not a standard website blocker. It is a **hard-gate psychological firewall** designed for students and professionals who need to eliminate digital noise entirely. Once activated, it cannot be easily disabled or removed until your specified goal date.
+> [!CAUTION]
+> **THIS EXTENSION ENFORCES AN ACTIVE ANTI-TAMPER PROTOCOL.**  
+> Once loaded into Chrome, navigation to `chrome://extensions` and extension settings is actively intercepted and redirected. You will **not** be able to casually click "Disable" or "Remove" through standard browser UI until the configured `UNLOCK_DATE` is reached. Proceed only if you are fully committed to deep, uninterrupted focus.
 
 ---
 
 ## 🚀 Key Features
 
 ### 📅 The Hard Date Gate
-The extension operates based on a constant `UNLOCK_DATE`. 
-- **Absolute Lockdown:** All blocking logic is non-negotiable until the system clock passes the unlock threshold.
-- **Auto-Unlock:** Once the date is reached, the firewall automatically deactivates, restoring full browser access.
+The firewall operates against a tamper-checked system threshold (`UNLOCK_DATE` in `constants.js`):
+- **Absolute Lockdown:** All filtering rules and anti-tamper mechanisms remain fully enforced until the system clock passes the unlock date.
+- **Automated Stand-down:** Once the unlock timestamp arrives, the extension automatically stands down, restoring standard browser navigation without requiring code edits.
 
-### ⏳ 15-Minute Daily Allowance
-F.R.O.S.T. provides a **15-minute shared daily timer** for your most distracting sites.
-- **Combined Usage:** Spend 15 minutes total across all blacklisted sites (Reddit, Spotify, GitHub, etc.) before the redirect triggers.
-- **Real-Time Tracking:** The timer resets automatically at midnight.
-- **YouTube Exclusion:** Educational use is prioritized; standard YouTube browsing does NOT count against your 15-minute distraction timer.
+### ⏳ 15-Minute Shared Daily Allowance
+Maintains a shared pool of leisure time across distracting platforms:
+- **Pooled Distraction Budget:** Spend an aggregated 15 minutes total per day across all blacklisted domains (Reddit, Instagram, X/Twitter, etc.) before hard redirection triggers.
+- **Autonomous Midnight Reset:** The timer automatically resets at midnight each day via `chrome.storage.local`.
+- **Educational Exclusion:** Productive YouTube study sessions do *not* consume your 15-minute distraction allowance.
 
-### 🎥 Intelligent YouTube Firewall
-- **Shorts Purge:** All `youtube.com/shorts/` URLs are **immediately** blocked (no timer grace) to prevent doom-scrolling.
-- **Context-Aware Filtering:** Long-form videos are scanned in real-time. If the title does not contain academic or professional keywords (STEM, Humanities, Business, Research), the tab is redirected.
-- **Anti-Hover Block:** YouTube's "inline preview" (hover-play) is completely disabled to prevent bypassing the filter.
+### 🎥 Intelligent YouTube Educational Firewall
+Allows YouTube strictly for research and technical learning while eradicating rabbit holes:
+- **Instant Shorts Purge:** Any navigation to `youtube.com/shorts/*` is redirected instantly (zero-second grace).
+- **Engineering & Academic Filter:** Long-form videos are evaluated in real time. If the video title does not match verified STEM/engineering keywords (Physics, Calculus, Algorithms, Circuits, etc.), the video is immediately blocked.
+- **Anti-Hover Suppression:** YouTube’s inline preview / hover-play player (`#inline-preview-player`) is structurally hidden and disabled via injected CSS and DOM observers, eliminating passive thumbnail browsing.
+- **SPA Resilience:** Built to listen directly for YouTube single-page application lifecycle events (`yt-navigate-finish`, `yt-page-data-updated`).
 
-### 🚫 Distraction Blacklist
-The following platforms are tracked by the 15-minute timer:
-- `Facebook` • `Instagram` • `Twitter/X` • `TikTok` • `Snapchat` • `YouTube Music` • `Spotify` • `LinkedIn` • `Pinterest` • `Reddit` • `Quora` • `GitHub`
+### ⛔ Zero-Tolerance Hard Block
+Severe distraction hubs (e.g., streaming and pirate media platforms) are configured under `HARD_BLOCKED_DOMAINS` for 100% instant redirection with zero daily timer allowance.
 
 ### 🔐 Anti-Tamper Protocol
-Engineered to be "sticky." The extension monitors and blocks navigation to:
-- `chrome://extensions`
-- `chrome://settings/extensions`
-Any attempt to disable or remove the extension via the UI is intercepted and redirected.
+Blocks impulsive attempts to disable the extension mid-session:
+- Intercepts navigation to `chrome://extensions` and `chrome://settings/extensions`.
+- Leverages multi-layer navigation listeners (`tabs.onUpdated`, `webNavigation.onBeforeNavigate`, `webNavigation.onCommitted`).
 
 ---
 
-## 🛠️ Customization
-Before installing, you can tailor the protocol in `constants.js`:
+## 🛠️ Configuration & Customization
 
-1.  **Set Unlock Date:** Update the `UNLOCK_DATE` constant to your goal date.
-2.  **Set Redirect Target:** Paste your desired image or website link into `REDIRECT_TARGET`.
-3.  **Manage Keywords:** Add or remove keywords from the `EDUCATIONAL_KEYWORDS` array.
+All primary behavior is governed by [`constants.js`](constants.js). You can review or tailor these settings prior to installation:
 
----
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `UNLOCK_DATE` | `Date` | Timestamp until which all restrictions remain active (e.g. `2026-06-07T00:00:00`). |
+| `REDIRECT_TARGET` | `string` | Target URL where blocked tabs will be redirected (motivational wallpaper, focus dashboard). |
+| `BLOCKED_DOMAINS` | `Array<string>` | Hostnames subject to the shared 15-minute daily allowance. |
+| `HARD_BLOCKED_DOMAINS` | `Array<string>` | Hostnames permanently blocked with 0 allowance. |
+| `EDUCATIONAL_KEYWORDS` | `Array<string>` | Keywords required in YouTube video titles to permit viewing. |
 
-## 🛠️ Installation & Setup
-1.  Download or clone this repository.
-2.  Open Chrome and navigate to `chrome://extensions`.
-3.  Enable **Developer mode** (top-right corner).
-4.  Click **Load unpacked** and select the `frost-timer` folder.
-
----
-
-## ⚠️ Post-Installation Modification
-Since the **Anti-Tamper Protocol** blocks the "Reload" button in Chrome:
-1.  **Modify:** Edit the files in your `frost-timer` folder.
-2.  **Save:** Ensure changes are saved.
-3.  **Restart Chrome:** Close **all** Chrome windows and relaunch. Chrome will automatically reload the code from your folder.
+```javascript
+// constants.js excerpt
+export const UNLOCK_DATE = new Date('2026-06-07T00:00:00');
+export const REDIRECT_TARGET = 'https://i.pinimg.com/736x/6e/59/0b/6e590bb22b1fc1b447c8ff6a7f7902aa.jpg';
+```
 
 ---
 
-## 🛑 How to Emergency Remove
-If you must remove the extension before the unlock date:
-1.  **Close Chrome.**
-2.  **Delete the Folder:** Delete the `frost-timer` folder from your hard drive.
-3.  **Relaunch:** Chrome will detect the missing files and disable the extension.
+## 📥 Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/rithulraveendran/F.R.O.S.T.git
+   ```
+2. **Review Configuration:** Open `constants.js` and set your preferred `UNLOCK_DATE` and `REDIRECT_TARGET`.
+3. **Open Extensions Page:** Open Google Chrome and navigate to `chrome://extensions` *(do this before enabling the extension)*.
+4. **Enable Developer Mode:** Turn on the toggle switch in the top-right corner.
+5. **Load Extension:** Click **Load unpacked** and select the cloned repository folder.
+6. **Focus:** Your workstation is now locked into focus mode.
 
 ---
 
-## 📝 License
-Distributed under the MIT License. See `LICENSE` for more information.
+## 🔄 Applying Modifications
+
+Because the Anti-Tamper protocol prevents accessing the standard extension "Reload" button in the Chrome UI:
+1. Save your desired file edits in the folder.
+2. Completely quit Chrome (close all open windows or exit via system tray / Task Manager).
+3. Relaunch Chrome. Chrome automatically picks up updated files for unpacked extensions upon restart.
 
 ---
+
+## 🛑 Emergency Bypass Protocol
+
+If an unexpected emergency requires removing the extension before the unlock date:
+1. Completely close Google Chrome.
+2. Move, rename, or delete the local folder from your storage drive.
+3. Relaunch Google Chrome. Chrome will detect the missing source files and deactivate the extension.
+
+---
+
+## 📜 License
+
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
+
+---
+
 <p align="center">
-  <i>Built for the relentless.</i>
+  <i>Built for the relentless. Zero excuses.</i>
 </p>
