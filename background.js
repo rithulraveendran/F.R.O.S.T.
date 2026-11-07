@@ -142,13 +142,27 @@ async function updateBadgeUI() {
         await chrome.action.setTitle({ title });
     } catch {}
 
-    // If quota expired while actively tracking, trigger immediate sync and redirect
+    // If quota expired while actively tracking, trigger immediate closure
     if (isExpired && isTrackingActive) {
         requestSync();
     }
 }
 
-// Safe tab redirect helper
+// Close a tab automatically; if it is the only tab in the window, redirect to avoid closing the entire browser
+async function closeOrRedirectTab(tabId) {
+    try {
+        const allTabs = await chrome.tabs.query({});
+        if (allTabs.length > 1) {
+            await chrome.tabs.remove(tabId);
+        } else {
+            await chrome.tabs.update(tabId, { url: getRedirectTarget() });
+        }
+    } catch {
+        // Tab may have already closed or navigated
+    }
+}
+
+// Redirect tab explicitly (used for hard blocks and anti-tamper)
 async function redirectTab(tabId) {
     try {
         await chrome.tabs.update(tabId, { url: getRedirectTarget() });
@@ -157,18 +171,37 @@ async function redirectTab(tabId) {
     }
 }
 
-// Redirect all open tabs that match tracked domains once timer expires
-async function redirectAllTrackedTabs() {
+// Close all open tabs that match tracked domains once timer expires
+async function closeAllTrackedTabs() {
     try {
         const tabs = await chrome.tabs.query({});
-        for (const tab of tabs) {
-            const url = tab.url || tab.pendingUrl;
-            if (url && isDomainMatched(url, BLOCKED_DOMAINS)) {
-                await redirectTab(tab.id);
-            }
+        const trackedTabs = tabs.filter((t) => {
+            const url = t.url || t.pendingUrl;
+            return url && isDomainMatched(url, BLOCKED_DOMAINS);
+        });
+
+        for (const tab of trackedTabs) {
+            await closeOrRedirectTab(tab.id);
         }
     } catch (err) {
-        console.error('Error redirecting tracked tabs:', err);
+        console.error('Error closing tracked tabs:', err);
+    }
+}
+
+// Find any currently active tab in any browser window matching tracked domains
+async function findActiveTrackedTab() {
+    try {
+        const activeTabs = await chrome.tabs.query({ active: true });
+        for (const tab of activeTabs) {
+            const url = tab.url || tab.pendingUrl;
+            if (url && isDomainMatched(url, BLOCKED_DOMAINS)) {
+                return tab;
+            }
+        }
+        return null;
+    } catch (err) {
+        console.error('Error finding active tracked tab:', err);
+        return null;
     }
 }
 
@@ -195,6 +228,18 @@ async function isAllowanceExhausted() {
     if (data.last_reset_date !== today) return false;
     const usage = data.today_usage || 0;
     return usage >= TIMER_LIMIT_MS;
+}
+
+// Schedule or update expiry alarm without queue thrashing
+async function scheduleExpiryAlarm(targetTime) {
+    try {
+        const existing = await chrome.alarms.get(ALARM_LIMIT_EXPIRY);
+        if (!existing || Math.abs(existing.scheduledTime - targetTime) > 5000) {
+            await chrome.alarms.create(ALARM_LIMIT_EXPIRY, { when: targetTime });
+        }
+    } catch (err) {
+        console.error('Error scheduling expiry alarm:', err);
+    }
 }
 
 // Mutex queue to prevent race conditions during async state updates
@@ -242,7 +287,7 @@ async function syncTrackingState() {
         usage += elapsed;
     }
 
-    // If quota reached or exceeded, redirect all tracked tabs immediately
+    // If quota reached or exceeded, close all tracked tabs immediately
     if (usage >= TIMER_LIMIT_MS) {
         usage = TIMER_LIMIT_MS;
         await chrome.storage.local.set({
@@ -254,32 +299,15 @@ async function syncTrackingState() {
         try {
             await chrome.alarms.clear(ALARM_LIMIT_EXPIRY);
         } catch {}
-        await redirectAllTrackedTabs();
+        await closeAllTrackedTabs();
         await updateBadgeUI();
         return;
     }
 
-    // Determine if the user is actively viewing a tracked domain right now
-    let isTrackedActive = false;
-    let currentActiveTab = null;
+    // Check if an active tracked tab is currently open across browser windows
+    const currentActiveTab = await findActiveTrackedTab();
 
-    try {
-        const lastWin = await chrome.windows.getLastFocused({ populate: true });
-        if (lastWin && lastWin.focused && Array.isArray(lastWin.tabs)) {
-            const activeTab = lastWin.tabs.find((t) => t.active);
-            if (activeTab) {
-                const url = activeTab.url || activeTab.pendingUrl;
-                if (url && isDomainMatched(url, BLOCKED_DOMAINS)) {
-                    isTrackedActive = true;
-                    currentActiveTab = activeTab;
-                }
-            }
-        }
-    } catch (err) {
-        console.error('Error checking active focused tab:', err);
-    }
-
-    if (isTrackedActive && currentActiveTab) {
+    if (currentActiveTab) {
         const remainingMs = TIMER_LIMIT_MS - usage;
         if (remainingMs <= 0) {
             await chrome.storage.local.set({
@@ -291,7 +319,7 @@ async function syncTrackingState() {
             try {
                 await chrome.alarms.clear(ALARM_LIMIT_EXPIRY);
             } catch {}
-            await redirectAllTrackedTabs();
+            await closeAllTrackedTabs();
         } else {
             // Track active session starting from now
             await chrome.storage.local.set({
@@ -300,11 +328,11 @@ async function syncTrackingState() {
                 session_start_time: now,
                 session_tab_id: currentActiveTab.id
             });
-            // Schedule exact alarm for when the remaining quota expires
-            await chrome.alarms.create(ALARM_LIMIT_EXPIRY, { when: now + remainingMs });
+            // Ensure exact alarm is scheduled for when remaining quota expires
+            await scheduleExpiryAlarm(now + remainingMs);
         }
     } else {
-        // Not actively viewing a tracked domain: persist accumulated usage and end session
+        // Not actively on a tracked tab: persist accumulated usage and end session
         await chrome.storage.local.set({
             today_usage: usage,
             last_reset_date: today,
@@ -348,11 +376,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         return;
     }
 
-    // Tracked domains (Redirect immediately if allowance exhausted)
+    // Tracked domains: close tab immediately if allowance exhausted
     if (isDomainMatched(url, BLOCKED_DOMAINS)) {
         const exhausted = await isAllowanceExhausted();
         if (exhausted) {
-            redirectTab(tabId);
+            await closeOrRedirectTab(tabId);
             return;
         }
     }
@@ -381,7 +409,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
     if (isDomainMatched(url, BLOCKED_DOMAINS)) {
         const exhausted = await isAllowanceExhausted();
         if (exhausted) {
-            redirectTab(details.tabId);
+            await closeOrRedirectTab(details.tabId);
         }
     }
 });
@@ -393,11 +421,6 @@ chrome.tabs.onActivated.addListener(() => {
 
 // Tab closed
 chrome.tabs.onRemoved.addListener(() => {
-    requestSync();
-});
-
-// Window focus changed (Chrome focused/unfocused or switched windows)
-chrome.windows.onFocusChanged.addListener(() => {
     requestSync();
 });
 
