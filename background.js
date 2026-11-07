@@ -53,6 +53,101 @@ function isDomainMatched(url, patterns) {
     return patterns.some((p) => hostnameMatches(hostname, p));
 }
 
+// Format remaining milliseconds to 4-character M:SS badge string
+function formatBadgeTime(remainingMs) {
+    if (remainingMs <= 0) return '0:00';
+    const totalSec = Math.ceil(remainingMs / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+// Dynamic badge background color based on remaining time
+function getBadgeColor(remainingMs) {
+    if (remainingMs <= 0) return '#7f1d1d'; // Deep red / expired
+    if (remainingMs <= 60000) return '#dc2626'; // Red (< 1 min)
+    if (remainingMs <= 120000) return '#d97706'; // Amber (< 2 min)
+    return '#0284c7'; // Ice Blue / Cyan (> 2 min)
+}
+
+// Update the extension toolbar action badge text, colors, and tooltip
+async function updateBadgeUI() {
+    if (!chrome.action) return;
+
+    if (!isBlockingActive()) {
+        try {
+            await chrome.action.setBadgeText({ text: '' });
+            await chrome.action.setTitle({ title: 'F.R.O.S.T. - Focus period ended' });
+        } catch {}
+        return;
+    }
+
+    const today = getLocalDateString();
+    const now = Date.now();
+
+    const data = await chrome.storage.local.get([
+        'last_reset_date',
+        'today_usage',
+        'session_start_time',
+        'show_badge'
+    ]);
+
+    let usage = (data.last_reset_date === today) ? (data.today_usage || 0) : 0;
+    if (typeof usage !== 'number' || isNaN(usage) || usage < 0) {
+        usage = 0;
+    }
+
+    const isTrackingActive = Boolean(data.session_start_time && typeof data.session_start_time === 'number');
+    if (isTrackingActive) {
+        const elapsed = Math.max(0, now - data.session_start_time);
+        usage += elapsed;
+    }
+
+    const remainingMs = Math.max(0, TIMER_LIMIT_MS - usage);
+    const isExpired = remainingMs <= 0;
+    const isBadgeEnabled = Boolean(data.show_badge);
+
+    const badgeText = formatBadgeTime(remainingMs);
+    const badgeColor = getBadgeColor(remainingMs);
+
+    // Show badge text if user clicked to enable it, if actively on a tracked site, or if expired
+    if (isExpired || isTrackingActive || isBadgeEnabled) {
+        try {
+            await chrome.action.setBadgeText({ text: badgeText });
+            await chrome.action.setBadgeBackgroundColor({ color: badgeColor });
+            if (chrome.action.setBadgeTextColor) {
+                await chrome.action.setBadgeTextColor({ color: '#ffffff' });
+            }
+        } catch {}
+    } else {
+        try {
+            await chrome.action.setBadgeText({ text: '' });
+        } catch {}
+    }
+
+    // Set informative tooltip
+    const totalSec = Math.ceil(remainingMs / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    let title;
+    if (isExpired) {
+        title = 'F.R.O.S.T.: Daily allowance exhausted (0:00 remaining)';
+    } else if (isTrackingActive) {
+        title = `F.R.O.S.T.: ${m}m ${s}s remaining (Active countdown) - Click to toggle`;
+    } else {
+        title = `F.R.O.S.T.: ${m}m ${s}s remaining of ${ALLOWANCE_MINUTES}m quota (Paused) - Click to toggle`;
+    }
+
+    try {
+        await chrome.action.setTitle({ title });
+    } catch {}
+
+    // If quota expired while actively tracking, trigger immediate sync and redirect
+    if (isExpired && isTrackingActive) {
+        requestSync();
+    }
+}
+
 // Safe tab redirect helper
 async function redirectTab(tabId) {
     try {
@@ -122,6 +217,7 @@ async function syncTrackingState() {
         try {
             await chrome.alarms.clear(ALARM_LIMIT_EXPIRY);
         } catch {}
+        await updateBadgeUI();
         return;
     }
 
@@ -159,6 +255,7 @@ async function syncTrackingState() {
             await chrome.alarms.clear(ALARM_LIMIT_EXPIRY);
         } catch {}
         await redirectAllTrackedTabs();
+        await updateBadgeUI();
         return;
     }
 
@@ -218,6 +315,18 @@ async function syncTrackingState() {
             await chrome.alarms.clear(ALARM_LIMIT_EXPIRY);
         } catch {}
     }
+
+    await updateBadgeUI();
+}
+
+// Extension action click: toggle badge countdown display
+if (chrome.action && chrome.action.onClicked) {
+    chrome.action.onClicked.addListener(async () => {
+        const data = await chrome.storage.local.get(['show_badge']);
+        const nextState = !Boolean(data.show_badge);
+        await chrome.storage.local.set({ show_badge: nextState });
+        await updateBadgeUI();
+    });
 }
 
 // Main blocking logic on tab navigation/updates
@@ -308,7 +417,12 @@ chrome.runtime.onMessage.addListener((request, sender) => {
     }
 });
 
-// In-memory ticker while background service worker is awake
+// Live second-by-second countdown ticker while service worker is active
+setInterval(() => {
+    updateBadgeUI();
+}, 1000);
+
+// In-memory sync ticker while background service worker is awake
 setInterval(() => {
     requestSync();
 }, 5000);

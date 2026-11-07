@@ -12,6 +12,9 @@
   "host_permissions": [
     "<all_urls>"
   ],
+  "action": {
+    "default_title": "F.R.O.S.T. - Click to view remaining time"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"

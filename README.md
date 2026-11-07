@@ -31,6 +31,17 @@ Maintains a shared pool of leisure time across distracting platforms:
 - **Autonomous Midnight Reset:** The timer automatically resets at midnight each day via `chrome.storage.local`.
 - **Educational Exclusion:** Productive YouTube study sessions do *not* consume your distraction allowance.
 
+### ⏱️ Live Toolbar Badge Countdown
+Check remaining time directly from your browser toolbar:
+- **Click to Toggle:** Click the extension icon in Chrome's toolbar at any time to display your remaining daily countdown on the badge (e.g. `4:35`, `3:20`, `0:00`).
+- **Live Second-by-Second Countdown:** While actively browsing a tracked distraction site, the badge automatically ticks down in real time.
+- **Dynamic Color Alerts:**
+  - 🔵 **Ice Blue** (`#0284c7`): > 2 minutes remaining.
+  - 🟠 **Amber** (`#d97706`): 1–2 minutes remaining.
+  - 🔴 **Crimson** (`#dc2626`): < 1 minute remaining.
+  - 🛑 **Deep Red** (`#7f1d1d`): Quota exhausted (`0:00`).
+- **Detailed Tooltip:** Hover over the toolbar icon to view exact remaining minutes, seconds, and status.
+
 ### 🎥 Intelligent YouTube Educational Firewall
 Allows YouTube strictly for research and technical learning while eradicating rabbit holes:
 - **Instant Shorts Purge:** Any navigation to `youtube.com/shorts/*` is redirected instantly (zero-second grace).
