@@ -76,7 +76,7 @@ All primary behavior is governed by [`constants.js`](constants.js). You can revi
 // constants.js excerpt
 export const UNLOCK_DATE = new Date('2027-01-05T00:00:00');
 export const DAILY_ALLOWANCE_MINUTES = 5;
-export const REDIRECT_TARGET = 'https://i.pinimg.com/736x/6e/59/0b/6e590bb22b1fc1b447c8ff6a7f7902aa.jpg';
+export const REDIRECT_TARGET = 'https://i.pinimg.com/736x/54/29/db/5429dbda352161dc28613f5061135dce.jpg';
 ```
 
 ---
