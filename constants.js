@@ -17,7 +17,7 @@ export const DAILY_ALLOWANCE_MINUTES = 5;
 /**
  * Target URL to redirect blocked requests (motivational wallpaper, focus dashboard, etc.).
  */
-export const REDIRECT_TARGET = 'https://i.pinimg.com/736x/54/29/db/5429dbda352161dc28613f5061135dce.jpg';
+export const REDIRECT_TARGET = 'https://i.pinimg.com/736x/1b/fe/cc/1bfecc680fca94aaa57920bbce34582a.jpg';
 
 /**
  * Domains tracked under the shared daily allowance.
@@ -102,4 +102,3 @@ export function compileKeywordRegex(keywords) {
  * Pre-compiled regular expression for educational keyword matching.
  */
 export const EDUCATIONAL_REGEX = compileKeywordRegex(EDUCATIONAL_KEYWORDS);
-

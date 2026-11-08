@@ -10,7 +10,7 @@ const ALLOWANCE_MINUTES = (typeof DAILY_ALLOWANCE_MINUTES === 'number' && DAILY_
     ? DAILY_ALLOWANCE_MINUTES
     : 5;
 const TIMER_LIMIT_MS = ALLOWANCE_MINUTES * 60 * 1000;
-const DEFAULT_REDIRECT_FALLBACK = 'https://i.pinimg.com/736x/54/29/db/5429dbda352161dc28613f5061135dce.jpg';
+const DEFAULT_REDIRECT_FALLBACK = 'https://i.pinimg.com/736x/1b/fe/cc/1bfecc680fca94aaa57920bbce34582a.jpg';
 
 const ALARM_LIMIT_EXPIRY = 'frost_limit_expiry';
 const ALARM_HEARTBEAT = 'frost_heartbeat';
