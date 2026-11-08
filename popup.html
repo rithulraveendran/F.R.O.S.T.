@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F.R.O.S.T. Focus Dashboard</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="dashboard-container">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="2" x2="12" y2="22"></line>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="m20 16-4-4 4-4"></path>
+            <path d="m4 8 4 4-4 4"></path>
+            <path d="m16 4-4 4-4-4"></path>
+            <path d="m8 20 4-4 4 4"></path>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">F.R.O.S.T.</h1>
+          <p class="brand-subtitle">FOCUS SURVEILLANCE</p>
+        </div>
+      </div>
+      <div id="status-pill" class="status-pill status-monitoring">
+        <span class="status-dot"></span>
+        <span id="status-text">MONITORING</span>
+      </div>
+    </header>
+
+    <!-- Hero Circular Gauge Card -->
+    <div class="hero-card">
+      <div class="gauge-wrapper">
+        <svg class="progress-ring" width="160" height="160" viewBox="0 0 160 160">
+          <circle class="ring-bg" cx="80" cy="80" r="70" />
+          <circle id="progress-circle" class="ring-fill" cx="80" cy="80" r="70" />
+        </svg>
+        <div class="gauge-center">
+          <div id="timer-display" class="timer-display">5:00</div>
+          <div id="timer-label" class="timer-label">DAILY REMAINING</div>
+        </div>
+      </div>
+      <div class="allowance-details">
+        <span id="usage-summary">Used 0m 00s of 5m 00s quota</span>
+      </div>
+    </div>
+
+    <!-- Active Tab Context Surveillance Banner -->
+    <div id="context-banner" class="context-banner context-productive">
+      <div class="context-icon" id="context-icon">🛡️</div>
+      <div class="context-info">
+        <div class="context-domain" id="context-domain">github.com</div>
+        <div class="context-desc" id="context-desc">Productive Focus Mode (Allowance Paused)</div>
+      </div>
+    </div>
+
+    <!-- 2x2 Surveillance Metrics Grid -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">LOCKDOWN GATE</div>
+        <div class="metric-val" id="unlock-date-display">Jan 05, 2027</div>
+        <div class="metric-sub" id="unlock-countdown">-- days left</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">DAILY REFRESH</div>
+        <div class="metric-val" id="reset-time-display">Midnight</div>
+        <div class="metric-sub" id="reset-countdown">in --h --m</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">PERIMETER</div>
+        <div class="metric-val" id="perimeter-count">13 Domains</div>
+        <div class="metric-sub" id="perimeter-sub">Shared 5m budget</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">ANTI-TAMPER</div>
+        <div class="metric-val text-success" id="anti-tamper-val">ENFORCED</div>
+        <div class="metric-sub" id="anti-tamper-sub">Extensions Locked</div>
+      </div>
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="controls-bar">
+      <label class="toggle-container" for="badge-toggle">
+        <input type="checkbox" id="badge-toggle" checked>
+        <span class="toggle-slider"></span>
+        <span class="toggle-label">Toolbar badge countdown</span>
+      </label>
+      <button id="sync-btn" class="sync-button" title="Sync with background service worker" aria-label="Force Sync">
+        <svg class="sync-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+        <span class="sync-text">Sync</span>
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <footer class="dashboard-footer">
+      <p class="quote">“Engineering demands precision. Procrastination is a variable we cannot afford.”</p>
+      <div class="footer-meta">
+        <span>F.R.O.S.T. v1.0 (MV3)</span>
+      </div>
+    </footer>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

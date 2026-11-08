@@ -1,3 +1,7 @@
+// ==============================================================================
+// F.R.O.S.T. Content Script (YouTube Strict Academic Surveillance & Shorts Elimination)
+// ==============================================================================
+
 const EDUCATIONAL_KEYWORDS = [
     // General Educational Terms
     'tutorial', 'course', 'lecture', 'science', 'math', 'coding', 'study', 'university', 'college', 'exam', 
@@ -25,111 +29,237 @@ const EDUCATIONAL_KEYWORDS = [
     'prototype', 'patent', 'standard', 'iso', 'ieee'
 ];
 
-// Inject CSS to hide inline previews and prevent hover-play initialization
+// Helper to escape regex special characters
+function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Pre-compile regular expression with word boundaries and punctuation handling
+function compileKeywordRegex(keywords) {
+    const patterns = keywords.map((k) => {
+        const esc = escapeRegex(k.toLowerCase());
+        const start = /^\w/.test(k) ? '\\b' : '(?<=^|[\\s.,!?;:()[\\]{}"\'`\\/-])';
+        const end = /\w$/.test(k) ? '\\b' : '(?=$|[\\s.,!?;:()[\\]{}"\'`\\/-])';
+        return start + esc + end;
+    });
+    return new RegExp(patterns.join('|'), 'i');
+}
+
+const EDUCATIONAL_REGEX = compileKeywordRegex(EDUCATIONAL_KEYWORDS);
+
+// Inject CSS at document_start to hide Shorts navigation, shelves, and hover previews
 const style = document.createElement('style');
 style.textContent = `
+    /* Inline preview suppression (eliminates DOM mutation thrashing) */
     #inline-preview-player,
     ytd-video-preview,
     ytd-inline-playback-renderer,
     #preview-container,
-    .ytd-video-preview {
+    .ytd-video-preview,
+    ytd-moving-thumbnail-renderer,
+
+    /* YouTube Shorts UI suppression */
+    ytd-guide-entry-renderer:has(a[href*="/shorts"]),
+    ytd-mini-guide-entry-renderer:has(a[href*="/shorts"]),
+    ytd-rich-shelf-renderer[is-shorts],
+    ytd-reel-shelf-renderer,
+    ytd-rich-item-renderer:has(a[href*="/shorts"]),
+    a[href^="/shorts"],
+    a[href*="/shorts/"] {
         display: none !important;
         visibility: hidden !important;
         pointer-events: none !important;
     }
 `;
-document.documentElement.appendChild(style);
-
-function removeInlinePreviews() {
-    const previewSelectors = [
-        '#inline-preview-player', 
-        'ytd-video-preview', 
-        'ytd-inline-playback-renderer',
-        '#preview-container'
-    ];
-    previewSelectors.forEach(selector => {
-        const elements = document.querySelectorAll(selector);
-        elements.forEach(el => el.remove());
+if (document.documentElement) {
+    document.documentElement.appendChild(style);
+} else {
+    document.addEventListener('DOMContentLoaded', () => {
+        document.documentElement.appendChild(style);
     });
 }
 
-let lastCheckTime = 0;
-function checkYouTubeTitle() {
-    // Only check if we are on a WATCH page
-    const url = window.location.href;
-    if (!url.includes('youtube.com/watch')) return;
-    if (!url.includes('v=')) return;
+// Safe asynchronous messaging with context invalidation guard
+function safeSendMessage(message) {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
+        return;
+    }
+    try {
+        const p = chrome.runtime.sendMessage(message);
+        if (p && typeof p.catch === 'function') {
+            p.catch(() => {});
+        }
+    } catch {}
+}
 
-    // Rate limit checks to avoid issues during rapid DOM updates
-    const now = Date.now();
-    if (now - lastCheckTime < 1000) return;
-    lastCheckTime = now;
+// Pause and blank video element to prevent media leakage
+function pauseAndBlankMedia() {
+    try {
+        const videos = document.querySelectorAll('video');
+        videos.forEach((v) => {
+            try {
+                v.pause();
+                v.muted = true;
+                v.src = '';
+            } catch {}
+        });
+    } catch {}
+}
 
-    // Primary title selectors for the main video player ONLY
+// Instant detection and blocking of YouTube Shorts
+function checkShorts() {
+    const pathname = window.location.pathname || '';
+    const href = window.location.href || '';
+    if (pathname.startsWith('/shorts/') || href.includes('/shorts/')) {
+        pauseAndBlankMedia();
+        safeSendMessage({ action: 'redirect' });
+        return true;
+    }
+    return false;
+}
+
+// Watch page detector supporting standard watch, live streams, and embedded players
+function isWatchPage(url) {
+    if (!url) return false;
+    try {
+        const u = new URL(url);
+        if (!u.hostname.includes('youtube.com')) return false;
+        if (u.pathname === '/watch' && u.searchParams.has('v')) return true;
+        if (u.pathname.startsWith('/live/')) return true;
+        if (u.pathname.startsWith('/embed/')) return true;
+        return false;
+    } catch {
+        return (
+            (url.includes('youtube.com/watch') && url.includes('v=')) ||
+            url.includes('youtube.com/live/') ||
+            url.includes('youtube.com/embed/')
+        );
+    }
+}
+
+// Synchronously clean document.title for fast fallback
+function getCleanDocumentTitle() {
+    let t = document.title || '';
+    t = t.replace(/^\(\d+\)\s*/, ''); // strip notification count: "(3) Title"
+    t = t.replace(/\s*-\s*YouTube$/i, ''); // strip brand suffix: "Title - YouTube"
+    return t.trim();
+}
+
+// Extract active video title with robust selector cascade
+function getActiveVideoTitle() {
+    // 1. Check primary DOM elements
     const titleElement = document.querySelector(
         'ytd-watch-metadata h1 yt-formatted-string,' +
         'h1.ytd-video-primary-info-renderer,' +
         '#title h1,' +
-        'meta[name="title"]'
+        'h1.title.style-scope.ytd-video-primary-info-renderer'
     );
-    
     if (titleElement) {
-        const title = (titleElement.innerText || titleElement.content || '').toLowerCase();
-        // Ensure the title is not empty (sometimes it's empty during initial load)
-        if (title.trim().length === 0) return;
+        const text = (titleElement.innerText || '').trim();
+        if (text.length > 0) return text;
+    }
 
-        const isEducational = EDUCATIONAL_KEYWORDS.some(keyword => title.includes(keyword));
+    // 2. Synchronous fallback: document.title
+    const docTitle = getCleanDocumentTitle();
+    if (docTitle.length > 0 && docTitle.toLowerCase() !== 'youtube') {
+        return docTitle;
+    }
 
-        if (!isEducational) {
-            try {
-                chrome.runtime.sendMessage({ action: 'redirect' });
-            } catch {
-                // Ignore context invalidation on extension reload
-            }
-        }
+    // 3. Fallback: meta tag
+    const metaTitle = document.querySelector('meta[name="title"]');
+    if (metaTitle && metaTitle.content) {
+        const text = metaTitle.content.trim();
+        if (text.length > 0) return text;
+    }
+
+    return '';
+}
+
+let lastCheckTime = 0;
+function checkYouTubeTitle(force = false) {
+    // Shorts are always blocked immediately
+    if (checkShorts()) return;
+
+    const url = window.location.href;
+    if (!isWatchPage(url)) return;
+
+    const title = getActiveVideoTitle();
+    if (!title || title.length === 0) {
+        // Title not yet available in DOM; do not set lastCheckTime to avoid lockouts
+        return;
+    }
+
+    // Rate limit to avoid duplicate message spam once title has been verified (bypassed if forced)
+    const now = Date.now();
+    if (!force && now - lastCheckTime < 1000) return;
+    lastCheckTime = now;
+
+    const isEducational = EDUCATIONAL_REGEX.test(title);
+    if (!isEducational) {
+        pauseAndBlankMedia();
+        safeSendMessage({ action: 'redirect' });
     }
 }
 
-// Global Mutation Observer
+// Global Navigation Observer & SPA Event Handlers
 let lastCheckedUrl = window.location.href;
-let lastPreviewCleanupTime = 0;
 
 function onPossibleNavigation() {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
+        return;
+    }
+
+    if (checkShorts()) return;
+
     const currentUrl = window.location.href;
     if (currentUrl !== lastCheckedUrl) {
         lastCheckedUrl = currentUrl;
-        lastCheckTime = 0; // allow immediate re-check on navigation
-        setTimeout(checkYouTubeTitle, 250);
+        lastCheckTime = 0; // Reset debounce for new URL
+        checkYouTubeTitle(true);
+        // Staggered checks during DOM hydration of the newly loaded page
+        setTimeout(() => checkYouTubeTitle(true), 250);
+        setTimeout(() => checkYouTubeTitle(true), 600);
+        setTimeout(() => checkYouTubeTitle(true), 1200);
     } else {
-        checkYouTubeTitle();
+        checkYouTubeTitle(false);
     }
 }
 
 const observer = new MutationObserver(() => {
-    const now = Date.now();
-    if (now - lastPreviewCleanupTime > 500) {
-        lastPreviewCleanupTime = now;
-        removeInlinePreviews();
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
+        observer.disconnect();
+        return;
     }
-
     onPossibleNavigation();
 });
 
 observer.observe(document.documentElement, { childList: true, subtree: true });
 
-// Check on URL change (for SPA navigation)
-setInterval(() => {
+// Check on URL change interval fallback
+const checkInterval = setInterval(() => {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
+        clearInterval(checkInterval);
+        return;
+    }
     if (window.location.href !== lastCheckedUrl) {
         lastCheckedUrl = window.location.href;
         lastCheckTime = 0;
-        checkYouTubeTitle();
+        checkShorts();
+        checkYouTubeTitle(true);
     }
-}, 2000);
+}, 1000);
 
-// Initial checks
-checkYouTubeTitle();
-removeInlinePreviews();
+// Initial execution
+if (!checkShorts()) {
+    checkYouTubeTitle(true);
+}
 
-// YouTube SPA navigation events (more reliable than DOM mutation heuristics)
+// YouTube SPA navigation and browser history events
+window.addEventListener('yt-navigate-start', () => {
+    if (checkShorts()) return;
+    onPossibleNavigation();
+}, true);
 window.addEventListener('yt-navigate-finish', onPossibleNavigation, true);
 window.addEventListener('yt-page-data-updated', onPossibleNavigation, true);
+window.addEventListener('popstate', onPossibleNavigation, true);
+window.addEventListener('hashchange', onPossibleNavigation, true);

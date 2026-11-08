@@ -3,6 +3,12 @@
   "name": "F.R.O.S.T. - Extreme Productivity Blocker",
   "version": "1.0",
   "description": "Hard-blocks distractions and locks browser settings until the designated focus unlock date.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "tabs",
     "storage",
@@ -13,7 +19,14 @@
     "<all_urls>"
   ],
   "action": {
-    "default_title": "F.R.O.S.T. - Click to view remaining time"
+    "default_popup": "popup.html",
+    "default_title": "F.R.O.S.T. Focus Dashboard",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "background": {
     "service_worker": "background.js",
@@ -23,7 +36,8 @@
     {
       "matches": ["*://*.youtube.com/*"],
       "js": ["content.js"],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "all_frames": true
     }
   ]
 }
