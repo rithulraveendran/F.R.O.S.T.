@@ -44,13 +44,7 @@ function getHostname(url) {
 function hostnameMatches(hostname, domainPattern) {
     if (!hostname || !domainPattern) return false;
     const pattern = domainPattern.toLowerCase();
-    const host = hostname.toLowerCase();
-    if (pattern.includes('.')) {
-        return host === pattern || host.endsWith(`.${pattern}`);
-    }
-    // Match domain labels for keyword patterns without dots (e.g. 'flixbaba')
-    const labels = host.split('.');
-    return labels.includes(pattern);
+    return hostname === pattern || hostname.endsWith(`.${pattern}`);
 }
 
 function isDomainMatched(url, patterns) {
@@ -103,19 +97,15 @@ async function updateBadgeUI() {
         usage = 0;
     }
 
-    const isTrackingActive = Boolean(
-        data.last_reset_date === today &&
-        data.session_start_time &&
-        typeof data.session_start_time === 'number'
-    );
+    const isTrackingActive = Boolean(data.session_start_time && typeof data.session_start_time === 'number');
     if (isTrackingActive) {
         const elapsed = Math.max(0, now - data.session_start_time);
-        usage += Math.min(elapsed, 120000);
+        usage += elapsed;
     }
 
     const remainingMs = Math.max(0, TIMER_LIMIT_MS - usage);
     const isExpired = remainingMs <= 0;
-    const isBadgeEnabled = (data.show_badge !== undefined) ? Boolean(data.show_badge) : true;
+    const isBadgeEnabled = Boolean(data.show_badge);
 
     const badgeText = formatBadgeTime(remainingMs);
     const badgeColor = getBadgeColor(remainingMs);
@@ -143,9 +133,9 @@ async function updateBadgeUI() {
     if (isExpired) {
         title = 'F.R.O.S.T.: Daily allowance exhausted (0:00 remaining)';
     } else if (isTrackingActive) {
-        title = `F.R.O.S.T.: ${m}m ${s}s remaining (Active countdown)`;
+        title = `F.R.O.S.T.: ${m}m ${s}s remaining (Active countdown) - Click to toggle`;
     } else {
-        title = `F.R.O.S.T.: ${m}m ${s}s remaining of ${ALLOWANCE_MINUTES}m quota (Paused)`;
+        title = `F.R.O.S.T.: ${m}m ${s}s remaining of ${ALLOWANCE_MINUTES}m quota (Paused) - Click to toggle`;
     }
 
     try {
@@ -198,21 +188,21 @@ async function closeAllTrackedTabs() {
     }
 }
 
-// Helper to check if Incognito access is allowed for this extension
-function checkIncognitoAccess() {
-    return new Promise((resolve) => {
-        try {
-            if (typeof chrome !== 'undefined' && chrome.extension && typeof chrome.extension.isAllowedIncognitoAccess === 'function') {
-                chrome.extension.isAllowedIncognitoAccess((isAllowed) => {
-                    resolve(Boolean(isAllowed));
-                });
-            } else {
-                resolve(true); // Default to true in non-extension or test mock environments
+// Find any currently active tab in any browser window matching tracked domains
+async function findActiveTrackedTab() {
+    try {
+        const activeTabs = await chrome.tabs.query({ active: true });
+        for (const tab of activeTabs) {
+            const url = tab.url || tab.pendingUrl;
+            if (url && isDomainMatched(url, BLOCKED_DOMAINS)) {
+                return tab;
             }
-        } catch {
-            resolve(true);
         }
-    });
+        return null;
+    } catch (err) {
+        console.error('Error finding active tracked tab:', err);
+        return null;
+    }
 }
 
 // Purge incognito windows and tabs immediately
@@ -227,7 +217,6 @@ function purgeIncognitoTab(tab) {
     return false;
 }
 
-// Purge all existing incognito windows across the browser
 async function purgeAllIncognito() {
     if (!isBlockingActive()) return;
     try {
@@ -285,93 +274,49 @@ if (chrome.windows && chrome.windows.onFocusChanged) {
     });
 }
 
-// Purge any incognito windows on initialization
-purgeAllIncognito();
-
-// Find any currently active tab across browser windows matching tracked domains
-async function findActiveTrackedTab() {
-    try {
-        if (chrome.windows && chrome.windows.getLastFocused) {
-            const lastWin = await chrome.windows.getLastFocused({ populate: true });
-            if (lastWin && lastWin.state !== 'minimized' && Array.isArray(lastWin.tabs)) {
-                const activeTab = lastWin.tabs.find((t) => t.active);
-                if (activeTab) {
-                    const url = activeTab.url || activeTab.pendingUrl;
-                    if (url && isDomainMatched(url, BLOCKED_DOMAINS)) {
-                        return activeTab;
-                    }
-                }
-                return null;
-            }
-        }
-
-        const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        if (activeTabs && activeTabs.length > 0) {
-            const tab = activeTabs[0];
-            const url = tab.url || tab.pendingUrl;
-            if (url && isDomainMatched(url, BLOCKED_DOMAINS)) {
-                return tab;
-            }
-        }
-        return null;
-    } catch (err) {
-        console.error('Error finding active tracked tab:', err);
-        return null;
-    }
-}
-
-// Anti-tamper: Block extensions page by closing the tab (or redirect fallback)
-const blockExtensions = async (details) => {
+// Anti-tamper: Block extensions page
+const blockExtensions = (details) => {
     if (!isBlockingActive() || !details) return;
     const url = details.url || details.pendingUrl;
     if (url && (url.startsWith('chrome://extensions') || url.startsWith('chrome://settings/extensions'))) {
-        const isAllowedIncognito = await checkIncognitoAccess();
-        // If Incognito permission is NOT yet granted, allow user to open extension details page to toggle it
-        if (!isAllowedIncognito) {
-            const extId = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) ? chrome.runtime.id : '';
-            if (extId && (url.includes(extId) || url === 'chrome://extensions' || url === 'chrome://extensions/')) {
-                return;
-            }
+        if (chrome.extension && chrome.extension.isAllowedIncognitoAccess) {
+            chrome.extension.isAllowedIncognitoAccess((isAllowed) => {
+                if (!isAllowed) {
+                    const extId = (chrome.runtime && chrome.runtime.id) ? chrome.runtime.id : '';
+                    if (extId && (url.includes(extId) || url === 'chrome://extensions' || url === 'chrome://extensions/')) {
+                        return;
+                    }
+                }
+                const tabId = details.tabId || details.id;
+                if (tabId) {
+                    redirectTab(tabId);
+                }
+            });
+            return;
         }
-
         const tabId = details.tabId || details.id;
         if (tabId) {
-            try {
-                await chrome.tabs.remove(tabId);
-            } catch {
-                await redirectTab(tabId);
-            }
+            redirectTab(tabId);
         }
     }
 };
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    const url = changeInfo.url || tab.pendingUrl || tab.url;
-    blockExtensions({ url, tabId });
-});
-chrome.webNavigation.onBeforeNavigate.addListener((details) => blockExtensions({ url: details.url, tabId: details.tabId }));
-chrome.webNavigation.onCommitted.addListener((details) => blockExtensions({ url: details.url, tabId: details.tabId }));
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => blockExtensions(tab));
+chrome.webNavigation.onBeforeNavigate.addListener((details) => blockExtensions(details));
+chrome.webNavigation.onCommitted.addListener((details) => blockExtensions(details));
 
-// Helper to check if today's allowance is already exhausted (including in-flight active session)
+// Helper to check if today's allowance is already exhausted
 async function isAllowanceExhausted() {
     const today = getLocalDateString();
-    const data = await chrome.storage.local.get(['last_reset_date', 'today_usage', 'session_start_time']);
+    const data = await chrome.storage.local.get(['last_reset_date', 'today_usage']);
     if (data.last_reset_date !== today) return false;
-    let usage = (typeof data.today_usage === 'number' && !isNaN(data.today_usage) && data.today_usage > 0)
-        ? data.today_usage
-        : 0;
-    if (data.session_start_time && typeof data.session_start_time === 'number') {
-        const elapsed = Math.max(0, Date.now() - data.session_start_time);
-        usage += Math.min(elapsed, 120000);
-    }
+    const usage = data.today_usage || 0;
     return usage >= TIMER_LIMIT_MS;
 }
 
 // Schedule or update expiry alarm without queue thrashing
 async function scheduleExpiryAlarm(targetTime) {
     try {
-        const now = Date.now();
-        if (targetTime <= now) return;
         const existing = await chrome.alarms.get(ALARM_LIMIT_EXPIRY);
         if (!existing || Math.abs(existing.scheduledTime - targetTime) > 5000) {
             await chrome.alarms.create(ALARM_LIMIT_EXPIRY, { when: targetTime });
@@ -384,10 +329,10 @@ async function scheduleExpiryAlarm(targetTime) {
 // Mutex queue to prevent race conditions during async state updates
 let syncQueue = Promise.resolve();
 
-function requestSync(closedTabId = null) {
+function requestSync() {
     syncQueue = syncQueue.then(async () => {
         try {
-            await syncTrackingState(closedTabId);
+            await syncTrackingState();
         } catch (err) {
             console.error('Error in syncTrackingState:', err);
         }
@@ -396,7 +341,7 @@ function requestSync(closedTabId = null) {
 }
 
 // Core tracking engine: synchronized timestamp-based time tracking
-async function syncTrackingState(closedTabId = null) {
+async function syncTrackingState() {
     if (!isBlockingActive()) {
         try {
             await chrome.alarms.clear(ALARM_LIMIT_EXPIRY);
@@ -408,9 +353,6 @@ async function syncTrackingState(closedTabId = null) {
     const today = getLocalDateString();
     const now = Date.now();
 
-    // Verify whether an active tracked tab currently exists in the focused window
-    const currentActiveTab = await findActiveTrackedTab();
-
     const data = await chrome.storage.local.get([
         'last_reset_date',
         'today_usage',
@@ -418,54 +360,15 @@ async function syncTrackingState(closedTabId = null) {
         'session_tab_id'
     ]);
 
-    let usage = 0;
-    if (data.last_reset_date === today) {
-        usage = (typeof data.today_usage === 'number' && !isNaN(data.today_usage) && data.today_usage > 0)
-            ? data.today_usage
-            : 0;
+    let usage = (data.last_reset_date === today) ? (data.today_usage || 0) : 0;
+    if (typeof usage !== 'number' || isNaN(usage) || usage < 0) {
+        usage = 0;
+    }
 
-        // Determine if an in-flight session is valid to accumulate.
-        // We accumulate elapsed session time if:
-        // 1. The tracked tab is currently active in the focused window, OR
-        // 2. Window lost focus / tab switched within the same running browser, OR
-        // 3. The tracked tab was actively browsed and just closed (matching closedTabId).
-        // If the browser restarted (cold start / session restore), session_tab_id will not match
-        // any open tracked tab or currentActiveTab, preventing dangling session time inflation.
-        let isSessionValid = false;
-        if (data.session_start_time && typeof data.session_start_time === 'number' && data.session_tab_id) {
-            try {
-                const allTabs = await chrome.tabs.query({});
-                const sessionTab = allTabs.find((t) => t.id === data.session_tab_id);
-                const url = sessionTab && (sessionTab.url || sessionTab.pendingUrl);
-                if (url && isDomainMatched(url, BLOCKED_DOMAINS)) {
-                    // Legitimate active session: either currently active in the focused window,
-                    // OR window lost focus / tab switched within the same running browser
-                    if (currentActiveTab && currentActiveTab.id === data.session_tab_id) {
-                        isSessionValid = true;
-                    } else if (!currentActiveTab) {
-                        isSessionValid = true;
-                    }
-                } else if (closedTabId && data.session_tab_id === closedTabId) {
-                    // The tracked tab was actively browsed and just closed!
-                    isSessionValid = true;
-                }
-            } catch {
-                isSessionValid = false;
-            }
-        }
-
-        if (isSessionValid) {
-            const rawElapsed = now - data.session_start_time;
-            if (rawElapsed > 0) {
-                // Cap single-interval elapsed time to realistic boundaries (e.g. 120,000 ms)
-                // to prevent suspended/sleeping browser tabs from draining the quota
-                usage += Math.min(rawElapsed, 120000);
-            }
-        }
-    } else {
-        // Date changed (midnight rollover): reset tracking and clean dangling sessions
-        data.session_start_time = null;
-        data.session_tab_id = null;
+    // Accumulate elapsed time if an active tracking session was open
+    if (data.session_start_time && typeof data.session_start_time === 'number') {
+        const elapsed = Math.max(0, now - data.session_start_time);
+        usage += elapsed;
     }
 
     // If quota reached or exceeded, close all tracked tabs immediately
@@ -484,6 +387,9 @@ async function syncTrackingState(closedTabId = null) {
         await updateBadgeUI();
         return;
     }
+
+    // Check if an active tracked tab is currently open across browser windows
+    const currentActiveTab = await findActiveTrackedTab();
 
     if (currentActiveTab) {
         const remainingMs = TIMER_LIMIT_MS - usage;
@@ -510,7 +416,7 @@ async function syncTrackingState(closedTabId = null) {
             await scheduleExpiryAlarm(now + remainingMs);
         }
     } else {
-        // Not actively on a tracked tab: persist accumulated usage and cleanly end session
+        // Not actively on a tracked tab: persist accumulated usage and end session
         await chrome.storage.local.set({
             today_usage: usage,
             last_reset_date: today,
@@ -525,16 +431,22 @@ async function syncTrackingState(closedTabId = null) {
     await updateBadgeUI();
 }
 
-// Note: In Chrome Manifest V3, when "action.default_popup" is specified in manifest.json,
-// chrome.action.onClicked does not fire because clicking the action icon opens the popup.
-// Badge display preferences and status controls are managed via the Focus Dashboard popup.
+// Extension action click: toggle badge countdown display
+if (chrome.action && chrome.action.onClicked) {
+    chrome.action.onClicked.addListener(async () => {
+        const data = await chrome.storage.local.get(['show_badge']);
+        const nextState = !Boolean(data.show_badge);
+        await chrome.storage.local.set({ show_badge: nextState });
+        await updateBadgeUI();
+    });
+}
 
 // Main blocking logic on tab navigation/updates
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (!isBlockingActive()) return;
     if (purgeIncognitoTab(tab)) return;
 
-    const url = changeInfo.url || tab.pendingUrl || tab.url;
+    const url = tab.url || tab.pendingUrl || changeInfo.url;
     if (!url) return;
 
     // Block YouTube Shorts (Always Immediate)
@@ -569,7 +481,6 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
     const url = details.url;
     if (!url) return;
 
-    // Block YouTube Shorts (Always Immediate)
     if (url.toLowerCase().includes('youtube.com/shorts/')) {
         redirectTab(details.tabId);
         return;
@@ -594,16 +505,9 @@ chrome.tabs.onActivated.addListener(() => {
 });
 
 // Tab closed
-chrome.tabs.onRemoved.addListener((tabId) => {
-    requestSync(tabId);
+chrome.tabs.onRemoved.addListener(() => {
+    requestSync();
 });
-
-// Window focus changed: pause timer if focus leaves Chrome or switches away from tracked tab
-if (chrome.windows && chrome.windows.onFocusChanged) {
-    chrome.windows.onFocusChanged.addListener(() => {
-        requestSync();
-    });
-}
 
 // Alarm triggers (expiry or periodic heartbeat)
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -612,20 +516,16 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     }
 });
 
-// Listen for messages from content scripts and popup dashboard
+// Listen for messages from content script (YouTube validation) and UI popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (!request || !request.action) return false;
+    if (!isBlockingActive()) return false;
 
-    // Content script redirect command (YouTube non-educational or Shorts)
     if (request.action === 'redirect' && sender.tab) {
-        if (isBlockingActive()) {
-            redirectTab(sender.tab.id);
-        }
+        redirectTab(sender.tab.id);
         return false;
     }
 
-    // Focus Dashboard Popup state query and synchronization API
-    if (request.action === 'GET_STATE' || request.action === 'get_status' || request.action === 'REQUEST_SYNC') {
+    if (request.action === 'GET_STATE' || request.action === 'get_status') {
         (async () => {
             try {
                 await requestSync();
@@ -640,19 +540,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 if (typeof usage !== 'number' || isNaN(usage) || usage < 0) {
                     usage = 0;
                 }
-                const isTracking = Boolean(
-                    data.last_reset_date === today &&
-                    data.session_start_time &&
-                    typeof data.session_start_time === 'number'
-                );
+                const isTracking = Boolean(data.session_start_time && typeof data.session_start_time === 'number');
                 if (isTracking) {
                     const elapsed = Math.max(0, Date.now() - data.session_start_time);
-                    usage += Math.min(elapsed, 120000);
+                    usage += elapsed;
                 }
                 const remainingMs = Math.max(0, TIMER_LIMIT_MS - usage);
                 const isExpired = remainingMs <= 0;
                 const showBadge = (data.show_badge !== undefined) ? Boolean(data.show_badge) : true;
-                const isAllowedIncognito = await checkIncognitoAccess();
+
+                let isAllowedIncognito = true;
+                if (chrome.extension && chrome.extension.isAllowedIncognitoAccess) {
+                    isAllowedIncognito = await new Promise((r) => chrome.extension.isAllowedIncognitoAccess(r));
+                }
 
                 sendResponse({
                     remainingMs,
@@ -666,19 +566,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 });
             } catch (err) {
                 console.error('Error handling GET_STATE:', err);
-                sendResponse({
-                    remainingMs: 0,
-                    todayUsage: TIMER_LIMIT_MS,
-                    timerLimitMs: TIMER_LIMIT_MS,
-                    isTrackingActive: false,
-                    isExpired: true,
-                    isBlockingActive: isBlockingActive(),
-                    showBadge: true,
-                    isAllowedIncognito: true
-                });
+                sendResponse(null);
             }
         })();
-        return true; // Keep message channel open for async response
+        return true;
     }
 
     return false;
@@ -695,35 +586,28 @@ setInterval(() => {
 }, 5000);
 
 // Initialize periodic heartbeat alarm safely without wiping pending alarms
-async function ensureHeartbeatAlarm() {
-    try {
-        if (!chrome.alarms) return;
-        const alarm = await chrome.alarms.get(ALARM_HEARTBEAT);
+function ensureHeartbeatAlarm() {
+    chrome.alarms.get(ALARM_HEARTBEAT, (alarm) => {
         if (!alarm) {
-            await chrome.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: 1 });
+            chrome.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: 1 });
         }
-    } catch (err) {
-        console.error('Error ensuring heartbeat alarm:', err);
-    }
+    });
 }
 
 // Lifecycle listeners
 chrome.runtime.onInstalled.addListener(async () => {
     try {
-        const data = await chrome.storage.local.get(['show_badge']);
-        if (data.show_badge === undefined) {
-            await chrome.storage.local.set({ show_badge: true });
-        }
+        await purgeAllIncognito();
     } catch {}
-    await purgeAllIncognito();
-    await ensureHeartbeatAlarm();
-    await requestSync();
-
-    // Check if Incognito access is allowed; if not, open extension details so user can easily enable it
+    ensureHeartbeatAlarm();
+    requestSync();
     try {
-        const isAllowed = await checkIncognitoAccess();
-        if (!isAllowed && chrome.tabs && chrome.tabs.create && chrome.runtime && chrome.runtime.id) {
-            chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
+        if (chrome.extension && chrome.extension.isAllowedIncognitoAccess) {
+            chrome.extension.isAllowedIncognitoAccess((isAllowed) => {
+                if (!isAllowed && chrome.tabs && chrome.tabs.create && chrome.runtime && chrome.runtime.id) {
+                    chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
+                }
+            });
         }
     } catch {}
 });
@@ -735,9 +619,11 @@ chrome.runtime.onStartup.addListener(async () => {
             session_tab_id: null
         });
     } catch {}
-    await purgeAllIncognito();
-    await ensureHeartbeatAlarm();
-    await requestSync();
+    try {
+        await purgeAllIncognito();
+    } catch {}
+    ensureHeartbeatAlarm();
+    requestSync();
 });
 
 // Bootstrap

@@ -76,29 +76,3 @@ export const EDUCATIONAL_KEYWORDS = [
     'cad', 'solidworks', 'autocad', 'matlab', 'labview', 'arduino', 'raspberry pi', 'embedded',
     'prototype', 'patent', 'standard', 'iso', 'ieee'
 ];
-
-/**
- * Escapes regex special characters.
- */
-export function escapeRegex(s) {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Compiles educational keywords into a high-performance regex with boundary guards.
- * Uses \b for alphanumeric words and lookarounds for symbols (e.g. 'c++').
- */
-export function compileKeywordRegex(keywords) {
-    const patterns = keywords.map((k) => {
-        const esc = escapeRegex(k.toLowerCase());
-        const start = /^\w/.test(k) ? '\\b' : '(?<=^|[\\s.,!?;:()[\\]{}"\'`\\/-])';
-        const end = /\w$/.test(k) ? '\\b' : '(?=$|[\\s.,!?;:()[\\]{}"\'`\\/-])';
-        return start + esc + end;
-    });
-    return new RegExp(patterns.join('|'), 'i');
-}
-
-/**
- * Pre-compiled regular expression for educational keyword matching.
- */
-export const EDUCATIONAL_REGEX = compileKeywordRegex(EDUCATIONAL_KEYWORDS);
