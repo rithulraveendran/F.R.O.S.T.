@@ -49,6 +49,15 @@
       </div>
     </div>
 
+    <!-- Incognito Shield Alert Banner (shown only when extension lacks Incognito permission) -->
+    <div id="incognito-alert" class="incognito-alert" style="display: none;">
+      <div class="incognito-alert-content">
+        <div class="incognito-alert-title">⚠️ INCOGNITO SHIELD INACTIVE</div>
+        <div class="incognito-alert-text">Toggle "Allow in incognito" to block private browsing.</div>
+      </div>
+      <button id="enable-incognito-btn" class="incognito-alert-btn">ENABLE</button>
+    </div>
+
     <!-- Active Tab Context Surveillance Banner -->
     <div id="context-banner" class="context-banner context-productive">
       <div class="context-icon" id="context-icon">🛡️</div>
@@ -76,9 +85,9 @@
         <div class="metric-sub" id="perimeter-sub">Shared 5m budget</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">ANTI-TAMPER</div>
+        <div class="metric-label">ANTI-TAMPER & INCOG</div>
         <div class="metric-val text-success" id="anti-tamper-val">ENFORCED</div>
-        <div class="metric-sub" id="anti-tamper-sub">Extensions Locked</div>
+        <div class="metric-sub" id="anti-tamper-sub">Incognito Blocked</div>
       </div>
     </div>
 

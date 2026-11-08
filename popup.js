@@ -183,7 +183,8 @@ let state = {
     isBlockingActive: isBlockingActive(),
     sessionStartTime: null,
     lastResetDate: getLocalDateString(),
-    showBadge: true
+    showBadge: true,
+    isAllowedIncognito: true
 };
 
 // UI Elements cache
@@ -208,6 +209,8 @@ function initElements() {
         perimeterSub: document.getElementById('perimeter-sub'),
         antiTamperVal: document.getElementById('anti-tamper-val'),
         antiTamperSub: document.getElementById('anti-tamper-sub'),
+        incognitoAlert: document.getElementById('incognito-alert'),
+        enableIncognitoBtn: document.getElementById('enable-incognito-btn'),
         badgeToggle: document.getElementById('badge-toggle'),
         syncBtn: document.getElementById('sync-btn')
     };
@@ -269,10 +272,19 @@ export function renderUI() {
     elements.perimeterSub.textContent = `Shared ${quotaMinutes}m budget`;
 
     if (state.isBlockingActive) {
-        elements.antiTamperVal.textContent = 'ENFORCED';
-        elements.antiTamperVal.className = 'metric-val text-success';
-        elements.antiTamperSub.textContent = 'Extensions Locked';
+        if (state.isAllowedIncognito === false) {
+            if (elements.incognitoAlert) elements.incognitoAlert.style.display = 'flex';
+            elements.antiTamperVal.textContent = 'ACTION REQ.';
+            elements.antiTamperVal.className = 'metric-val text-warning';
+            elements.antiTamperSub.textContent = 'Enable in Incognito';
+        } else {
+            if (elements.incognitoAlert) elements.incognitoAlert.style.display = 'none';
+            elements.antiTamperVal.textContent = 'ENFORCED';
+            elements.antiTamperVal.className = 'metric-val text-success';
+            elements.antiTamperSub.textContent = 'Incognito Blocked';
+        }
     } else {
+        if (elements.incognitoAlert) elements.incognitoAlert.style.display = 'none';
         elements.antiTamperVal.textContent = 'STANDDOWN';
         elements.antiTamperVal.className = 'metric-val';
         elements.antiTamperSub.textContent = 'Restrictions Lifted';
@@ -368,6 +380,13 @@ export async function loadCachedState() {
         state.showBadge = data.show_badge !== undefined ? Boolean(data.show_badge) : true;
         state.isBlockingActive = isBlockingActive();
 
+        if (chrome.extension && chrome.extension.isAllowedIncognitoAccess) {
+            chrome.extension.isAllowedIncognitoAccess((isAllowed) => {
+                state.isAllowedIncognito = Boolean(isAllowed);
+                renderUI();
+            });
+        }
+
         renderUI();
     } catch (err) {
         console.error('Error loading cached state:', err);
@@ -403,6 +422,9 @@ export async function syncAuthoritativeState() {
                 if (response.showBadge !== undefined) {
                     state.showBadge = Boolean(response.showBadge);
                 }
+                if (response.isAllowedIncognito !== undefined) {
+                    state.isAllowedIncognito = Boolean(response.isAllowedIncognito);
+                }
                 renderUI();
             }
         });
@@ -427,6 +449,16 @@ export function tick() {
 
 // Wire Event Listeners & Initialize
 export function setupEventListeners() {
+    // Enable Incognito button (opens extension page to toggle "Allow in incognito")
+    if (elements.enableIncognitoBtn) {
+        elements.enableIncognitoBtn.addEventListener('click', () => {
+            const extId = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) ? chrome.runtime.id : '';
+            if (chrome.tabs && chrome.tabs.create) {
+                chrome.tabs.create({ url: extId ? `chrome://extensions/?id=${extId}` : 'chrome://extensions' });
+            }
+        });
+    }
+
     // Badge toggle control
     if (elements.badgeToggle) {
         elements.badgeToggle.addEventListener('change', async () => {

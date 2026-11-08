@@ -198,10 +198,27 @@ async function closeAllTrackedTabs() {
     }
 }
 
+// Helper to check if Incognito access is allowed for this extension
+function checkIncognitoAccess() {
+    return new Promise((resolve) => {
+        try {
+            if (typeof chrome !== 'undefined' && chrome.extension && typeof chrome.extension.isAllowedIncognitoAccess === 'function') {
+                chrome.extension.isAllowedIncognitoAccess((isAllowed) => {
+                    resolve(Boolean(isAllowed));
+                });
+            } else {
+                resolve(true); // Default to true in non-extension or test mock environments
+            }
+        } catch {
+            resolve(true);
+        }
+    });
+}
+
 // Purge incognito windows and tabs immediately
 function purgeIncognitoTab(tab) {
     if (!isBlockingActive() || !tab) return false;
-    if (tab.incognito) {
+    if (tab.incognito && tab.id) {
         try {
             chrome.tabs.remove(tab.id);
         } catch {}
@@ -210,21 +227,66 @@ function purgeIncognitoTab(tab) {
     return false;
 }
 
+// Purge all existing incognito windows across the browser
+async function purgeAllIncognito() {
+    if (!isBlockingActive()) return;
+    try {
+        if (chrome.windows && chrome.windows.getAll) {
+            const wins = await chrome.windows.getAll({ populate: false });
+            for (const win of wins) {
+                if (win.incognito && win.id) {
+                    try {
+                        await chrome.windows.remove(win.id);
+                    } catch {}
+                }
+            }
+        }
+    } catch {}
+}
+
 if (chrome.tabs && chrome.tabs.onCreated) {
     chrome.tabs.onCreated.addListener((tab) => {
         purgeIncognitoTab(tab);
     });
 }
 
+if (chrome.tabs && chrome.tabs.onActivated) {
+    chrome.tabs.onActivated.addListener(async (activeInfo) => {
+        try {
+            if (chrome.tabs && chrome.tabs.get) {
+                const tab = await chrome.tabs.get(activeInfo.tabId);
+                purgeIncognitoTab(tab);
+            }
+        } catch {}
+    });
+}
+
 if (chrome.windows && chrome.windows.onCreated) {
     chrome.windows.onCreated.addListener((win) => {
-        if (isBlockingActive() && win.incognito) {
+        if (isBlockingActive() && win.incognito && win.id) {
             try {
                 chrome.windows.remove(win.id);
             } catch {}
         }
     });
 }
+
+if (chrome.windows && chrome.windows.onFocusChanged) {
+    chrome.windows.onFocusChanged.addListener(async (windowId) => {
+        if (!isBlockingActive() || !windowId || windowId === chrome.windows.WINDOW_ID_NONE) return;
+        try {
+            if (chrome.windows && chrome.windows.get) {
+                const win = await chrome.windows.get(windowId);
+                if (win && win.incognito && win.id) {
+                    chrome.windows.remove(win.id);
+                }
+            }
+        } catch {}
+    });
+}
+
+// Purge any incognito windows on initialization
+purgeAllIncognito();
 
 // Find any currently active tab across browser windows matching tracked domains
 async function findActiveTrackedTab() {
@@ -248,6 +310,15 @@ const blockExtensions = async (details) => {
     if (!isBlockingActive() || !details) return;
     const url = details.url || details.pendingUrl;
     if (url && (url.startsWith('chrome://extensions') || url.startsWith('chrome://settings/extensions'))) {
+        const isAllowedIncognito = await checkIncognitoAccess();
+        // If Incognito permission is NOT yet granted, allow user to open extension details page to toggle it
+        if (!isAllowedIncognito) {
+            const extId = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) ? chrome.runtime.id : '';
+            if (extId && (url.includes(extId) || url === 'chrome://extensions' || url === 'chrome://extensions/')) {
+                return;
+            }
+        }
+
         const tabId = details.tabId || details.id;
         if (tabId) {
             try {
@@ -565,6 +636,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const remainingMs = Math.max(0, TIMER_LIMIT_MS - usage);
                 const isExpired = remainingMs <= 0;
                 const showBadge = (data.show_badge !== undefined) ? Boolean(data.show_badge) : true;
+                const isAllowedIncognito = await checkIncognitoAccess();
 
                 sendResponse({
                     remainingMs,
@@ -573,7 +645,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     isTrackingActive: isTracking,
                     isExpired,
                     isBlockingActive: isBlockingActive(),
-                    showBadge
+                    showBadge,
+                    isAllowedIncognito
                 });
             } catch (err) {
                 console.error('Error handling GET_STATE:', err);
@@ -584,7 +657,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     isTrackingActive: false,
                     isExpired: true,
                     isBlockingActive: isBlockingActive(),
-                    showBadge: true
+                    showBadge: true,
+                    isAllowedIncognito: true
                 });
             }
         })();
@@ -625,8 +699,17 @@ chrome.runtime.onInstalled.addListener(async () => {
             await chrome.storage.local.set({ show_badge: true });
         }
     } catch {}
+    await purgeAllIncognito();
     await ensureHeartbeatAlarm();
     await requestSync();
+
+    // Check if Incognito access is allowed; if not, open extension details so user can easily enable it
+    try {
+        const isAllowed = await checkIncognitoAccess();
+        if (!isAllowed && chrome.tabs && chrome.tabs.create && chrome.runtime && chrome.runtime.id) {
+            chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
+        }
+    } catch {}
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -636,10 +719,12 @@ chrome.runtime.onStartup.addListener(async () => {
             session_tab_id: null
         });
     } catch {}
+    await purgeAllIncognito();
     await ensureHeartbeatAlarm();
     await requestSync();
 });
 
 // Bootstrap
+purgeAllIncognito();
 ensureHeartbeatAlarm();
 requestSync();
