@@ -198,29 +198,39 @@ async function closeAllTrackedTabs() {
     }
 }
 
-// Find any currently active tab in the focused browser window matching tracked domains
+// Purge incognito windows and tabs immediately
+function purgeIncognitoTab(tab) {
+    if (!isBlockingActive() || !tab) return false;
+    if (tab.incognito) {
+        try {
+            chrome.tabs.remove(tab.id);
+        } catch {}
+        return true;
+    }
+    return false;
+}
+
+if (chrome.tabs && chrome.tabs.onCreated) {
+    chrome.tabs.onCreated.addListener((tab) => {
+        purgeIncognitoTab(tab);
+    });
+}
+
+if (chrome.windows && chrome.windows.onCreated) {
+    chrome.windows.onCreated.addListener((win) => {
+        if (isBlockingActive() && win.incognito) {
+            try {
+                chrome.windows.remove(win.id);
+            } catch {}
+        }
+    });
+}
+
+// Find any currently active tab across browser windows matching tracked domains
 async function findActiveTrackedTab() {
     try {
-        if (chrome.windows && chrome.windows.getLastFocused) {
-            const lastWin = await chrome.windows.getLastFocused({ populate: true });
-            // Only count tracked tabs if the window is currently focused and not minimized
-            if (!lastWin || !lastWin.focused || lastWin.state === 'minimized' || !Array.isArray(lastWin.tabs)) {
-                return null;
-            }
-            const activeTab = lastWin.tabs.find((t) => t.active);
-            if (activeTab) {
-                const url = activeTab.url || activeTab.pendingUrl;
-                if (url && isDomainMatched(url, BLOCKED_DOMAINS)) {
-                    return activeTab;
-                }
-            }
-            return null;
-        }
-
-        // Fallback for environments where chrome.windows is unavailable
-        const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        if (activeTabs && activeTabs.length > 0) {
-            const tab = activeTabs[0];
+        const activeTabs = await chrome.tabs.query({ active: true });
+        for (const tab of activeTabs) {
             const url = tab.url || tab.pendingUrl;
             if (url && isDomainMatched(url, BLOCKED_DOMAINS)) {
                 return tab;
@@ -436,6 +446,7 @@ async function syncTrackingState(closedTabId = null) {
 // Main blocking logic on tab navigation/updates
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (!isBlockingActive()) return;
+    if (purgeIncognitoTab(tab)) return;
 
     const url = changeInfo.url || tab.pendingUrl || tab.url;
     if (!url) return;

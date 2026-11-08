@@ -3,6 +3,7 @@
   "name": "F.R.O.S.T. - Extreme Productivity Blocker",
   "version": "1.0",
   "description": "Hard-blocks distractions and locks browser settings until the designated focus unlock date.",
+  "incognito": "spanning",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
