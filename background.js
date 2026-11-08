@@ -529,34 +529,6 @@ async function syncTrackingState(closedTabId = null) {
 // chrome.action.onClicked does not fire because clicking the action icon opens the popup.
 // Badge display preferences and status controls are managed via the Focus Dashboard popup.
 
-// Detect YouTube URLs that should be blocked immediately (Main page, feed recommendations, and Shorts)
-function isYouTubeBlockedUrl(url) {
-    if (!url) return false;
-    try {
-        const u = new URL(url);
-        const host = u.hostname.toLowerCase();
-        if (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com') {
-            const p = u.pathname.replace(/\/+$/, '') || '/';
-            // Main homepage
-            if (p === '/' || p === '') return true;
-            // Shorts
-            if (p.startsWith('/shorts')) return true;
-            // Algorithmic feeds (trending, explore, subscriptions, etc.)
-            if (p.startsWith('/feed')) return true;
-        }
-    } catch {
-        const lower = url.toLowerCase();
-        if (lower.includes('/shorts/')) return true;
-        if (lower.startsWith('https://www.youtube.com/') || lower.startsWith('https://youtube.com/') ||
-            lower === 'https://www.youtube.com' || lower === 'https://youtube.com') {
-            const afterHost = lower.split('youtube.com')[1] || '';
-            if (afterHost === '' || afterHost === '/' || afterHost.startsWith('/?')) return true;
-            if (afterHost.startsWith('/feed')) return true;
-        }
-    }
-    return false;
-}
-
 // Main blocking logic on tab navigation/updates
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (!isBlockingActive()) return;
@@ -565,8 +537,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const url = changeInfo.url || tab.pendingUrl || tab.url;
     if (!url) return;
 
-    // Block YouTube Main Page, Feeds, and Shorts (Always Immediate)
-    if (isYouTubeBlockedUrl(url)) {
+    // Block YouTube Shorts (Always Immediate)
+    if (url.toLowerCase().includes('youtube.com/shorts/')) {
         redirectTab(tabId);
         return;
     }
@@ -597,8 +569,8 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
     const url = details.url;
     if (!url) return;
 
-    // Block YouTube Main Page, Feeds, and Shorts (Always Immediate)
-    if (isYouTubeBlockedUrl(url)) {
+    // Block YouTube Shorts (Always Immediate)
+    if (url.toLowerCase().includes('youtube.com/shorts/')) {
         redirectTab(details.tabId);
         return;
     }

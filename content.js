@@ -65,13 +65,7 @@ style.textContent = `
     ytd-reel-shelf-renderer,
     ytd-rich-item-renderer:has(a[href*="/shorts"]),
     a[href^="/shorts"],
-    a[href*="/shorts/"],
-
-    /* YouTube Main Page & Feeds suppression */
-    ytd-browse[page-subtype="home"],
-    ytd-browse[page-subtype="trending"],
-    ytd-browse[page-subtype="subscriptions"],
-    #page-manager > ytd-browse[role="main"] {
+    a[href*="/shorts/"] {
         display: none !important;
         visibility: hidden !important;
         pointer-events: none !important;
@@ -120,34 +114,6 @@ function checkShorts() {
         pauseAndBlankMedia();
         safeSendMessage({ action: 'redirect' });
         return true;
-    }
-    return false;
-}
-
-// Instant detection and blocking of YouTube Main Page and Algorithmic Feeds
-function checkMainOrFeed() {
-    try {
-        const u = new URL(window.location.href);
-        const p = u.pathname.replace(/\/+$/, '') || '/';
-        // Main page / home feed
-        if (p === '/' || p === '') {
-            pauseAndBlankMedia();
-            safeSendMessage({ action: 'redirect' });
-            return true;
-        }
-        // Algorithmic feeds (trending, explore, subscriptions, etc.)
-        if (p.startsWith('/feed')) {
-            pauseAndBlankMedia();
-            safeSendMessage({ action: 'redirect' });
-            return true;
-        }
-    } catch {
-        const href = window.location.href.toLowerCase();
-        if (href.endsWith('youtube.com/') || href.endsWith('youtube.com') || href.includes('youtube.com/?') || href.includes('/feed/')) {
-            pauseAndBlankMedia();
-            safeSendMessage({ action: 'redirect' });
-            return true;
-        }
     }
     return false;
 }
@@ -211,9 +177,8 @@ function getActiveVideoTitle() {
 
 let lastCheckTime = 0;
 function checkYouTubeTitle(force = false) {
-    // Shorts and Main Page are always blocked immediately
+    // Shorts are always blocked immediately
     if (checkShorts()) return;
-    if (checkMainOrFeed()) return;
 
     const url = window.location.href;
     if (!isWatchPage(url)) return;
@@ -245,7 +210,6 @@ function onPossibleNavigation() {
     }
 
     if (checkShorts()) return;
-    if (checkMainOrFeed()) return;
 
     const currentUrl = window.location.href;
     if (currentUrl !== lastCheckedUrl) {
@@ -281,20 +245,18 @@ const checkInterval = setInterval(() => {
         lastCheckedUrl = window.location.href;
         lastCheckTime = 0;
         if (checkShorts()) return;
-        if (checkMainOrFeed()) return;
         checkYouTubeTitle(true);
     }
 }, 1000);
 
 // Initial execution
-if (!checkShorts() && !checkMainOrFeed()) {
+if (!checkShorts()) {
     checkYouTubeTitle(true);
 }
 
 // YouTube SPA navigation and browser history events
 window.addEventListener('yt-navigate-start', () => {
     if (checkShorts()) return;
-    if (checkMainOrFeed()) return;
     onPossibleNavigation();
 }, true);
 window.addEventListener('yt-navigate-finish', onPossibleNavigation, true);
